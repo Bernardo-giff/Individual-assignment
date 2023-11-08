@@ -1,0 +1,16 @@
+---
+title: "Individual assignment"
+author: "Bernardo"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Individual assignment
+
+## LCS - Lettuce forecasting
+
+### Importing the datasets
+
+library(readr)
+
+portion_uom_types \<- read_csv("data/portion_uom_types.csv")
