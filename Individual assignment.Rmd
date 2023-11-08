@@ -11,6 +11,31 @@ output: html_document
 
 ### Importing the datasets
 
-library(readr)
+First, we import the relevant libraries to the project
 
-portion_uom_types \<- read_csv("data/portion_uom_types.csv")
+```{r}
+library(readr)
+library(tidyr)
+library(dplyr)
+```
+
+```{r}
+portion_uom_types <- read_csv("data/portion_uom_types.csv")
+ingredients <- read_csv("data/ingredients.csv")
+pos_ordersale <- read_csv("data/pos_ordersale.csv")
+menu_items_all <- read_csv("data/menuitem.csv")
+menu_item_key <- read_csv("data/menu_items.csv")
+```
+
+```{r}
+
+#filter for store of interest
+pos_ordersale <- filter(pos_ordersale, StoreNumber == 46673)
+
+#Join the menu items table to the orders table
+result <- left_join(pos_ordersale, menu_items_all, by = "MD5KEY_ORDERSALE")
+
+#Join the menu items key to this table
+result <- left_join(result, menu_item_key, by = c("PLU" = "PLU", "Id" = "MenuItemId"))
+summary(result)
+```
