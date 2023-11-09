@@ -41,60 +41,150 @@ library(tidyr)
 library(dplyr)
 ```
 
-```{r message=FALSE, warning=FALSE}
-portion_uom_types <- read_csv("data/portion_uom_types.csv")
-ingredients <- read_csv("data/ingredients.csv")
-pos_ordersale <- read_csv("data/pos_ordersale.csv")
-menu_items_all <- read_csv("data/menuitem.csv")
-menu_item_key <- read_csv("data/menu_items.csv")
-recipes <- read_csv("data/recipes.csv")
-recipe_ingredient_assignments<- read_csv("data/recipe_ingredient_assignments.csv")
-ingredients <- read_csv("data/ingredients.csv")
+We start by recognizing the schema of the assignment's dataset:
 
-# Sub recipe data sets
-recipe_sub_recipe_assignments <- read_csv("data/recipe_sub_recipe_assignments.csv")
-sub_recipes <- read_csv('data/sub_recipes.csv')
-sub_recipe_ingr_assignemts <- ('data/sub_recipe_ingr_assignment.csv')
+```{r message=FALSE, warning=FALSE}
+
+# Import the main transactional table, which is "menu_items_all"
+
+main <- read_csv('data/menuitem.csv')
+
+# Columns that are necessary
+columns <- c("MD5KEY_ORDERSALE", "StoreNumber", "PLU", "Id", "Quantity")
+
+# Keep only necessary columns
+main <- main[,columns]
+
+# Filter for store of interest
+main <- filter(main, StoreNumber == 46673)
 ```
 
-Then we need to figure out what is the id of Lettuce
+Now we will join that table with the pos_ordersale table to get the date using the "MD5KEY_ORDERSALE" primary key
+
+```{r message=FALSE, warning=FALSE}
+# Import pos_ordersale table
+pos_ordersale <- read_csv("data/pos_ordersale.csv")
+
+main <- left_join(main, select(pos_ordersale, c("date", "MD5KEY_ORDERSALE")), by="MD5KEY_ORDERSALE")
+```
+
+Next, we want to bring in the recipe id. To do that, we will need to join the "menu_items" table on "PLU" and "Id" (left) and "RecipeId" (right)
+
+```{r message=FALSE, warning=FALSE}
+# Import pos_ordersale table
+menu_items <- read_csv("data/menu_items.csv")
+
+main <- left_join(main, select(menu_items, c("PLU", "MenuItemId", "RecipeId")), by = c("PLU" = "PLU", "Id" = "MenuItemId"))
+```
+
+```{r}
+main
+```
+
+Our main transaction table is ready. Now, we need to figure out the quantity of lettuce per recipe. Then, we will be able to group the main table by date and have a total of lettuce demand for each day. Let's start by identifying the id of lettuce in the dataset
 
 ```{r}
 # Grab lettuce's id
-lettuce_id <- filter(ingredients, IngredientName == "Lettuce")$IngredientId
+filter(ingredients, grepl("Lettuce", IngredientName, ignore.case = TRUE))
 ```
 
-Therefore, we only need the recipes that contain this ingredient.
+We see that there are two lettuces in the dataset. We know from the live session that the metric lettuce is not used in any of the transactions. Therefore, we will take 27 as the only id for lettuce.
+
+Next, we import the recipes dataset
+
+```{r message=FALSE, warning=FALSE}
+
+# Importing recipes dataset
+
+recipes <- read_csv("data/recipes.csv")
+```
+
+Then, we know that the ingredients can be used in an item in two ways: Via the ingredients directly or the sub-recipe. We will start by adding the lettuce quantities that come directly from the ingredients table.
+
+```{r message=FALSE, warning=FALSE}
+
+# Importing recipe_ingredients
+
+recipe_ingredient_assignments <- read_csv("data/recipe_ingredient_assignments.csv")
+# Filter only for lettuce
+
+recipe_ingredient_assignments <- filter(recipe_ingredient_assignments, 
+                                        IngredientId == 27)
+
+# Join in the recipe table
+recipes <- left_join(recipes, select(recipe_ingredient_assignments,
+                                   c("RecipeId", "Quantity")), 
+                    by="RecipeId") %>%
+# Mutate to change the NA's to 0
+           mutate(Quantity = ifelse(is.na(Quantity), 0, Quantity)) %>%
+#Change the name of the column to specify it comes from direct  
+           rename(quantity_from_direct = Quantity)
+```
+
+Now, we need to get the quantity of lettuce from the sub-recipes
+
+```{r message=FALSE, warning=FALSE}
+
+# Import sub recipe assignment dataset
+recipe_sub_recipe_assignments <- read_csv("data/recipe_sub_recipe_assignments.csv")
+
+# Import the sub_recipes ingredients assignment
+sub_recipe_ingr_assignments <- read_csv("data/sub_recipe_ingr_assignments.csv")
+
+# Join the sub_recipes with ingredients to get the recipe id
+recipe_sub_recipe_joint <- left_join(sub_recipe_ingr_assignments,
+                                     recipe_sub_recipe_assignments, 
+                                     by='SubRecipeId')
+
+# Filter for lettuce
+recipe_sub_recipe_joint <- filter(recipe_sub_recipe_joint,
+                                  IngredientId == 27) %>%
+                           mutate(total_quantity = Factor*Quantity)
+
+
+# Group by recipe
+recipe_sub_recipe_joint <- recipe_sub_recipe_joint %>%
+  group_by(RecipeId) %>%
+  summarise(total_quantity = sum(total_quantity, na.rm = TRUE))
+
+# Join with the recipes table
+recipes_final <- left_join(recipes, recipe_sub_recipe_joint, by="RecipeId") %>%
+# Mutate to change the NA's to 0
+           mutate(total_quantity = ifelse(is.na(total_quantity), 
+                                          0, total_quantity)) %>%
+#Change the name of the column to specify it comes from direct  
+           rename(quantity_from_sub = total_quantity) %>%
+#Sum the two columns to get the total of lettuce
+           mutate(total_lettuce = quantity_from_direct + quantity_from_sub) %>%
+#Filter out recipes that do not have lettuce
+           filter(total_lettuce > 0)
+```
+
+Then, we join our main transactional table again with this ingredietns adjusted table:
+
+```{r message=FALSE, warning=FALSE}
+
+main_joint <- left_join(main, select(recipes_final,
+                                     c("RecipeId", "total_lettuce")), 
+                        by="RecipeId") %>%
+# Filter out NA's
+              filter(!is.na(total_lettuce)) %>%
+# Group by date
+              group_by(date) %>%
+              summarise(total_lettuce = sum(total_lettuce))
+main_joint
+```
+
+The final step is to create a time-series out of it:
 
 ```{r}
 
-#filter for store of interest
-pos_ordersale <- filter(pos_ordersale, StoreNumber == 46673)
+main_joint$date <- as.Date(main_joint$date)
 
-#Join the menu items table to the orders table
-result1 <- left_join(pos_ordersale, menu_items_all, by = "MD5KEY_ORDERSALE")
 
-#Join the menu items key to this table
-result2 <- left_join(result1, menu_item_key, by = c("PLU" = "PLU", "Id" = "MenuItemId"))
-summary(result)
-```
+ts <- ts(main_joint, 
+         start = as.numeric(format(min(main_joint$date), "%Y")), frequency = 365)
 
-\-\-\-\-\-\-\-\--
+plot(ts, main = "Total Lettuce Over Time", ylab = "Total Lettuce", xlab = "Time")
 
-We took a shortcut with Excel here. Will need to go back and adjust this later
-
-```{r}
-shortcut <- read_csv("data/shortcut_menu_items.csv")
-```
-
-With that, we make an inner join with the menuitems table (i.e: only keep the items sold that have lettuce
-
-```{r}
-filtered_menu_items <- inner_join(menu_item_key, shortcut, by='RecipeId')
-```
-
-Then, only keep the menu items (i.e: sold items with orders) that have lettuce
-
-```{r}
-filtered_menu_items_all <- inner_join(menu_items_all, filtered_menu_items, c("PLU" = "PLU", "Id" = "MenuItemId"))
 ```
