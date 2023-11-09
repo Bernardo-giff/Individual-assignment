@@ -1,45 +1,13 @@
 "0","portion_uom_types <- read_csv(""data/portion_uom_types.csv"")"
-"2","[1mRows: [22m[34m5[39m [1mColumns: [22m[34m2[39m"
-"2","[36m──[39m [1mColumn specification[22m [36m─────────────────────────────────────────────────────────────────────────[39m
-[1mDelimiter:[22m "",""
-[31mchr[39m (1): PortionTypeDescription
-[32mdbl[39m (1): PortionUOMTypeId"
-"2","
-[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
-[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
 "0","ingredients <- read_csv(""data/ingredients.csv"")"
-"2","[1mRows: [22m[34m673[39m [1mColumns: [22m[34m4[39m"
-"2","[36m──[39m [1mColumn specification[22m [36m─────────────────────────────────────────────────────────────────────────[39m
-[1mDelimiter:[22m "",""
-[31mchr[39m (2): IngredientName, IngredientShortDescription
-[32mdbl[39m (2): IngredientId, PortionUOMTypeId"
-"2","
-[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
-[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
 "0","pos_ordersale <- read_csv(""data/pos_ordersale.csv"")"
-"2","[1mRows: [22m[34m43228[39m [1mColumns: [22m[34m9[39m"
-"2","[36m──[39m [1mColumn specification[22m [36m─────────────────────────────────────────────────────────────────────────[39m
-[1mDelimiter:[22m "",""
-[31mchr[39m (2): MD5KEY_ORDERSALE, date
-[32mdbl[39m (7): ChangeReceived, OrderNumber, TaxInclusiveAmount, TaxAmount, MealLocation, Transactio..."
-"2","
-[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
-[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
 "0","menu_items_all <- read_csv(""data/menuitem.csv"")"
-"2","[1mRows: [22m[34m91431[39m [1mColumns: [22m[34m15[39m"
-"2","[36m──[39m [1mColumn specification[22m [36m─────────────────────────────────────────────────────────────────────────[39m
-[1mDelimiter:[22m "",""
-[31mchr[39m (6): MD5KEY_MENUITEM, MD5KEY_ORDERSALE, CategoryDescription, DepartmentDescription, Descr...
-[32mdbl[39m (9): StoreNumber, TaxInclusiveAmount, TaxAmount, AdjustedPrice, DiscountAmount, Price, Qu..."
-"2","
-[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
-[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
 "0","menu_item_key <- read_csv(""data/menu_items.csv"")"
-"2","[1mRows: [22m[34m8005[39m [1mColumns: [22m[34m5[39m"
-"2","[36m──[39m [1mColumn specification[22m [36m─────────────────────────────────────────────────────────────────────────[39m
-[1mDelimiter:[22m "",""
-[31mchr[39m (2): MenuItemName, MenuItemDescription
-[32mdbl[39m (3): PLU, MenuItemId, RecipeId"
-"2","
-[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
-[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"0","recipes <- read_csv(""data/recipes.csv"")"
+"0","recipe_ingredient_assignments<- read_csv(""data/recipe_ingredient_assignments.csv"")"
+"0","ingredients <- read_csv(""data/ingredients.csv"")"
+"0",""
+"0","# Sub recipe data sets"
+"0","recipe_sub_recipe_assignments <- read_csv(""data/recipe_sub_recipe_assignments.csv"")"
+"0","sub_recipes <- read_csv('data/sub_recipes.csv')"
+"0","sub_recipe_ingr_assignemts <- ('data/sub_recipe_ingr_assignment.csv')"

@@ -9,6 +9,28 @@ output: html_document
 
 ## LCS - Lettuce forecasting
 
+## Live session notes
+
+-   There are three months of data
+
+-   Data from 4 different stores
+
+Our data consists of three parts:
+
+1.  Transaction data
+2.  List of ingredients --\> quality and quantity
+3.  Metadata on restaurants
+
+Forecast the daily demand for the next two weeks (from 16/06/2015 to 29/06/2015) for lettuce for store 46673. We also need to fill in the CSV file. All we have to do there is to substitute the numbers.
+
+So the two steps of the project are:
+
+-   Generate a time series of daily demand of lettuce --\> Most of the time
+
+-   apply ARIMA and Holt-winters to predict the demand
+
+-   Compare the results
+
 ### Importing the datasets
 
 First, we import the relevant libraries to the project
@@ -19,13 +41,30 @@ library(tidyr)
 library(dplyr)
 ```
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 portion_uom_types <- read_csv("data/portion_uom_types.csv")
 ingredients <- read_csv("data/ingredients.csv")
 pos_ordersale <- read_csv("data/pos_ordersale.csv")
 menu_items_all <- read_csv("data/menuitem.csv")
 menu_item_key <- read_csv("data/menu_items.csv")
+recipes <- read_csv("data/recipes.csv")
+recipe_ingredient_assignments<- read_csv("data/recipe_ingredient_assignments.csv")
+ingredients <- read_csv("data/ingredients.csv")
+
+# Sub recipe data sets
+recipe_sub_recipe_assignments <- read_csv("data/recipe_sub_recipe_assignments.csv")
+sub_recipes <- read_csv('data/sub_recipes.csv')
+sub_recipe_ingr_assignemts <- ('data/sub_recipe_ingr_assignment.csv')
 ```
+
+Then we need to figure out what is the id of Lettuce
+
+```{r}
+# Grab lettuce's id
+lettuce_id <- filter(ingredients, IngredientName == "Lettuce")$IngredientId
+```
+
+Therefore, we only need the recipes that contain this ingredient.
 
 ```{r}
 
@@ -33,9 +72,29 @@ menu_item_key <- read_csv("data/menu_items.csv")
 pos_ordersale <- filter(pos_ordersale, StoreNumber == 46673)
 
 #Join the menu items table to the orders table
-result <- left_join(pos_ordersale, menu_items_all, by = "MD5KEY_ORDERSALE")
+result1 <- left_join(pos_ordersale, menu_items_all, by = "MD5KEY_ORDERSALE")
 
 #Join the menu items key to this table
-result <- left_join(result, menu_item_key, by = c("PLU" = "PLU", "Id" = "MenuItemId"))
+result2 <- left_join(result1, menu_item_key, by = c("PLU" = "PLU", "Id" = "MenuItemId"))
 summary(result)
+```
+
+\-\-\-\-\-\-\-\--
+
+We took a shortcut with Excel here. Will need to go back and adjust this later
+
+```{r}
+shortcut <- read_csv("data/shortcut_menu_items.csv")
+```
+
+With that, we make an inner join with the menuitems table (i.e: only keep the items sold that have lettuce
+
+```{r}
+filtered_menu_items <- inner_join(menu_item_key, shortcut, by='RecipeId')
+```
+
+Then, only keep the menu items (i.e: sold items with orders) that have lettuce
+
+```{r}
+filtered_menu_items_all <- inner_join(menu_items_all, filtered_menu_items, c("PLU" = "PLU", "Id" = "MenuItemId"))
 ```
