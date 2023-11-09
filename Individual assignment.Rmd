@@ -39,6 +39,7 @@ First, we import the relevant libraries to the project
 library(readr)
 library(tidyr)
 library(dplyr)
+library(ggplot2)
 ```
 
 We start by recognizing the schema of the assignment's dataset:
@@ -141,7 +142,6 @@ recipe_sub_recipe_joint <- filter(recipe_sub_recipe_joint,
                                   IngredientId == 27) %>%
                            mutate(total_quantity = Factor*Quantity)
 
-
 # Group by recipe
 recipe_sub_recipe_joint <- recipe_sub_recipe_joint %>%
   group_by(RecipeId) %>%
@@ -164,27 +164,38 @@ Then, we join our main transactional table again with this ingredietns adjusted 
 
 ```{r message=FALSE, warning=FALSE}
 
-main_joint <- left_join(main, select(recipes_final,
+# Join the main transactional table with recipes to get the final table
+final <- left_join(main, select(recipes_final,
                                      c("RecipeId", "total_lettuce")), 
                         by="RecipeId") %>%
 # Filter out NA's
               filter(!is.na(total_lettuce)) %>%
+# Multiply by total quantity
+              mutate(total_lettuce = Quantity*total_lettuce) %>%
 # Group by date
               group_by(date) %>%
               summarise(total_lettuce = sum(total_lettuce))
-main_joint
+final
 ```
 
 The final step is to create a time-series out of it:
 
 ```{r}
+# Transforming date field from the final table
+final$date<- as.Date(paste0("20", substr(final$date, 1, 2), "-", substr(final$date, 4, 5), "-", substr(final$date, 7, 8)))
 
-main_joint$date <- as.Date(main_joint$date)
+# Build time series
+ts <- ts(final, start = min(final$date), frequency = 7)
 
-
-ts <- ts(main_joint, 
-         start = as.numeric(format(min(main_joint$date), "%Y")), frequency = 365)
-
-plot(ts, main = "Total Lettuce Over Time", ylab = "Total Lettuce", xlab = "Time")
+# Plot the time series directly using ggplot2
+ggplot(final, aes(date, total_lettuce)) + 
+  geom_line() + 
+  labs(title = "Time Series Plot of Lettuce Sales",
+       x = "Date",
+       y = "Total Lettuce Sales")
 
 ```
+
+# Arima application
+
+# Winter-holz
