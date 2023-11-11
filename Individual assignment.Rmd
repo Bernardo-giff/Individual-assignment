@@ -39,7 +39,9 @@ First, we import the relevant libraries to the project
 library(readr)
 library(tidyr)
 library(dplyr)
+library(forecast)
 library(ggplot2)
+library(tseries)
 ```
 
 We start by recognizing the schema of the assignment's dataset:
@@ -196,6 +198,224 @@ ggplot(final, aes(date, total_lettuce)) +
 
 ```
 
-# Arima application
+# Arima model
 
-# Winter-holz
+Next, we will use the ARIMA model to forecast the demand of lettuce for the next two weeks from the observation. In order to do that, we will apply the *Box-Jenkins* procedure to our dataset. It cosists of three steps [[ADD ARIMA MODEL DEFINITION HERE]]
+
+1.  Identification
+2.  Estimation
+3.  Verification
+
+## Identification
+
+The first step is to identify if our data is stationary. A stationary time series is such that its statistical properties do not depend on the time at which the series is observed. Therefore, time series with trends or with seasonality, are not stationary and we need to remove them before we proceed with the application of the ARIMA model. In order to make a time series stationary we can either rescale the time series and apply differentiation to remove the deterministic components.
+
+We start by making a simple plot of the time series as it is:
+
+```{r}
+library(scales)
+
+# Plot the time series directly using ggplot2
+ggplot(final, aes(date, total_lettuce)) + 
+  geom_line() + 
+  labs(title = "Time Series Plot of Lettuce Sales",
+       x = "Date",
+       y = "Total Lettuce Sales") + 
+    scale_x_date(labels = date_format("%d-%b"), breaks = date_breaks("7 day")) + 
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+```
+
+There is no clear indication of trend nor deterministic error. However, there is some clear indication of seasonality. We can get a better idea of the individual components of the time series by plotting the decomposition series.
+
+```{r}
+
+# Transform our df into a time-series object
+ar_ts <- ts(final[, 2], frequency=7, start = c(5,3))
+
+# Plot the decomposition of the time-series 
+stl_result <- decompose(ar_ts)
+
+# Plotting stl
+autoplot(stl_result) +
+  labs(title = "STL Decomposition of Time Series",
+       x = "Date",
+       y = "Total Lettuce Sales")
+```
+
+As we suspected, there is no strong trend factor, but the size of the grey bar in the seasonal decompositon suggests there is seasonality. Moreover, we can say that the seasonality looks additive, that is, it's not changing with the series. We can apply the KPSS test for trend stationary. In this test the null hypothesis is that the time series is stationary. This means that a large p-value will mean we fail to reject the null and therefore the time series has no trend.
+
+Before we proceed with testing and fitting, it is a good practice to split our data into a training and testing set. This will endure we will have a good way to compare our forecasts and assess the quality of our parameter choices. We will do a 75%-25% split
+
+```{r}
+# Splitting the dataset
+train_data <- final[final$date <= as.Date('2015/05/20'),]
+test_data <- final[final$date > as.Date('2015/05/20'),]
+
+# Time series
+train_ts <- ts(train_data[,2], frequency=7, start=c(05,03))
+test_ts <- ts(test_data[,2], frequency=7, start=c(16,03))
+final_ts <- ts(final[,2], frequency=7, start=c(05,03))
+```
+
+```{r}
+autoplot(train_ts, series="Training") +
+  autolayer(test_ts, series="Test") +
+  guides(colour=guide_legend("Split")) +
+  scale_color_manual(values=c("blue", "black")) +
+  xlab("Date") +
+  ylab("Lettuce consumption") + 
+  ggtitle("Train/Test Split: Weekly Data")
+```
+
+We proceed to the KPSS test. This test test the time series specifically for trend stationarity, with the null hypothesis being that the time series is trend stationary.
+
+```{r message=FALSE, warning=FALSE}
+
+# Applying KPSS test
+kpss.test(train_ts)
+```
+
+The p-value of the test was at least 0.1. So for a 10% confidence level, we fail to reject the hypothesis that the trend is stationary. With this is mind, we don't perform any differentiation on the time-series.
+
+The next step is to deal with the seasonality factor. To this end, we will use the nsdiffs() function. This will give us the number of seasonal differences required to stationarize the time series, if necessary. We expect this function to return a value greater then 0, since we observe a seasonal trend on the plot.
+
+```{r message=FALSE, warning=FALSE}
+
+# Applying KPSS test
+nsdiffs(train_ts)
+```
+
+The result of the function is 1. So we expect our best ARIMA model to have d=0 and D=1. Now we need to determine the p and q parameters of the model. To this end, we will analyse the correlation and partial correlation structures.
+
+```{r message=FALSE, warning=FALSE}
+
+# Applying KPSS test
+ggtsdisplay(train_ts,
+            plot.type='partial',
+            main = 'ACF and PACF',
+            smooth=TRUE)
+```
+
+The ACF plot shows clearly an autocorrelation at 7 and multiples of 7. This is expected for this dataset, since we expect our data to follow a weekly pattern, so the ACF confirms the seasonal behavior. On the PACF, we see that the plot fades after the lag 7. Therefore, a seasonal AR model with p = 7 seems to be the best choice. The following table shows the decision matrix for the ACF and PACF analysis.
+
+|      | AR(p)                | MA(q)                | ARMA(p,q) |
+|------|----------------------|----------------------|-----------|
+| ACF  | Tails off            | Cust off after lag q | Tails off |
+| PACF | Cust off after lag p | Tails off            | Tails off |
+
+## Estimation
+
+With this information, we will proceed to use auto.arima() to see if our expectations hold. We will use BIC (Bayes information criteria)
+
+```{r message=FALSE, warning=FALSE}
+
+# Applying the auto.arima function
+auto.arima(train_ts, trace = TRUE, ic = 'bic', allowdrift = FALSE)
+```
+
+The auto.arima() function returned the best model to be ARIMA(0,0,0)(0,1,1)[7]. Recall that the ARIMA model is defined as: ARIMA(p,d,q)(P,D,Q)[s]. This means that p, d and q values refer to the non-seasonal AR. Therefore:
+
+-   p = 0 means we need to account for the Y value at 0 lags from a given point t
+
+-   d = 0 meains that there is no first-order differentiation needed (level stationary)
+
+-   q = 0 means that the model the error term for the MA part should be taken from 0 lagged values
+
+-   P = 0 means we don't need any seasonal auto-regressive numbers
+
+-   D = 1 that we need one second order differentiation to remove the seasonality
+
+-   Q = 1 refers to the number of seasonal moving average terms.
+
+The next step is to use the Arima function to estimate the models based on the findings from the identification procedure. We take the three best models (i.e: lowest BIC values) in order to compare and validate their performance against the test data.
+
+```{r message=FALSE, warning=FALSE}
+
+# Devolping models for the top three models from the auto.arima() function
+
+#ARIMA(0,0,0)(0,1,1)[7]
+arima.m1 <- Arima(train_ts, order =c(0,0,0), 
+                  seasonal = c(0,1,1), include.drift = TRUE)
+
+#ARIMA(1,0,0)(0,1,1)[7]
+arima.m2 <- Arima(train_ts, order =c(1,0,0), 
+                  seasonal = c(0,1,1), include.drift = TRUE)
+
+#ARIMA(0,0,0)(1,1,1)[7]
+arima.m3 <- Arima(train_ts, order =c(0,0,1), 
+                  seasonal = c(0,1,1), include.drift = TRUE)
+
+```
+
+We will use the three models above to forecast, and use the MSE against the test data to select the best performing one
+
+```{r message=FALSE, warning=FALSE}
+
+# Devolping models for the top three models from the auto.arima() function
+
+# Forecast for ARIMA(0,0,0)(0,1,1)[7]
+arima.f1 <- forecast(arima.m1, h=26)
+
+#Forecast for ARIMA(1,0,0)(0,1,1)[7]
+arima.f2 <- forecast(arima.m2, h=26)
+
+#Forecast for ARIMA(0,0,1)(0,1,1)[7]
+arima.f3 <- forecast(arima.m3, h=26)
+```
+
+```{r message=FALSE, warning=FALSE}
+
+# Calculate accuracy for the first model
+accuracy(arima.f1, test_ts)
+
+# Calculate accuracy for the second model
+accuracy(arima.f2, test_ts)
+
+# Calculate accuracy for the third model
+accuracy(arima.f3, test_ts)
+
+```
+
+Although we calculated with the auto.arima function the best model to be ARIMA(0,0,0)(0,1,1)[7], it turns out the variation ARIMA(0,0,0)(1,1,1)[7] performed better on the test set. The difference between these two models is that now the P term should be one, meaning we take 1 autoregressive number for the seasonal part of the ARIMA model
+
+```{r message=FALSE, warning=FALSE}
+
+best_arima.m3 <- Arima(final_ts, order=c(0,0,0), seasonal = c(1,1,1))
+
+best_arima.m3.f <- forecast(best_arima.m3, h=14)
+
+plot(best_arima.m3.f, main="ARIMA forecast for the next 14 days", xlab='Date',
+     ylab='Lettuce demand (ounces)')
+```
+
+## Verification
+
+Check if the model fits the data using residuals analysis
+
+-   Calculate and plot the residuals from the model. The graph should give no indication of a non-zero mean or non-constant variance
+
+-   Plot the sample ACF off the residuals. No more than two or three out of 40 shall fall outside the bounds \$/frac{1.96}{\\sqrt{n}}\$
+
+-   The same applies to sample PACF of the residuals
+
+-   Test for randomness of the residuals
+
+```{r}
+checkresiduals(best_arima.m3)
+```
+
+# Holt-Winters
+
+For time series analysis, the first step is always to visually inspect the time series. In this regard, the stl() function is quite useful.
+
+```{r}
+hw_ts <- ts(final[, 2], frequency = 365, start = c(2015,3,5))
+
+hw_ts %>% stl(s.window = "period") %>% autoplot
+```
+
+It decomposes the original time series into trend, seasonal factors, and random error terms. The relative importance of different components are indicated by the grey bars in the plots. For this dataset, the grey bar of the trend panel is only slightly larger than that on the original time series panel, which indicates that trend component contributes to a great proportion of variations in the time series. Judging from the trend plot, the trend seems to be linear, which suggests an additive pattern.
+
+On the other hand, the grey bar of the seasonal panel is very large, even larger than the grey bar of random errorterm, which indicates that the contribution of seasonal factors to the variation in the original time series is marginal. In other words, it indicates that there is no seasonality in the data.

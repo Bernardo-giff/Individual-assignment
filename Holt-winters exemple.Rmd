@@ -1,0 +1,114 @@
+---
+title: "Holt-Winters example"
+author: "Bernardo"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(forecast)
+library(stats)
+
+```
+
+
+```{r cars}
+shampoo <- read_csv(file="C:/Users/Bernardo Carvalho/OneDrive - Imperial College London/LCS/shampoo.csv")
+
+
+
+ggplot(ts, aes(Month, "Sales of shampoo over a three year period")) + 
+  geom_line()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+
+```{r pressure, echo=FALSE}
+file <- "C:/Users/Bernardo Carvalho/OneDrive - Imperial College London/LCS/shampoo.csv"
+
+data <- read.csv(file = file, header = TRUE)
+
+shampoo <- ts(data[, 2], frequency = 12, start = c(2001, 1))
+
+shampoo %>% stl(s.window = "period") %>% autoplot
+```
+```{r}
+shampoo.ets <- ets(shampoo, model = "ZZZ")
+
+```
+With the ets() function, the best model is given by model = "AAN", which suggests that the error component is additive, trend is additive, and there is no evidence of seasonality. This is consistent with conclusions from our visual inspection.
+
+```{r}
+shampoo.ets.f <- forecast(shampoo.ets, h = 6)
+```
+After estimation, we can use forecast() function to generate forecast.
+
+```{r}
+shampoo.diff1 <- diff(shampoo, differences = 1)
+autoplot(shampoo.diff1)
+
+```
+```{r}
+library(tseries)
+
+adf.test(shampoo.diff1)
+pp.test(shampoo.diff1)
+kpss.test(shampoo.diff1)
+```
+```{r}
+ndiffs(shampoo)
+nsdiffs(shampoo)
+
+```
+
+```{r}
+acf(shampoo)
+```
+```{r}
+pacf(shampoo)
+```
+```{r}
+ggAcf(shampoo.diff1)
+ggPacf(shampoo.diff1)
+
+```
+
+Based on the plots, we know that the order
+ of MA is no greater than 2 (as the first two lags of ACF are significant), and the order of AR is no greater
+ than 1 (as only the first lag of PACF is significant).
+ 
+ Next we use auto.arima() to evaluate the quality of various ARIMA models. Potentially, we can use our
+ earlier analysis as input to refine the models that will be evaluated by auto.arima(). But for this simple 
+exercise, we just use the default setting from auto.arima(), and run a stepwise search.
+ 
+```{r}
+auto.arima(shampoo, trace = TRUE, ic = 'bic')
+```
+In the post-estimation  analysis, we should also check out the residual plots, including the time series and ACFs to make sure 
+that there is no warning message. In particular, residuals should have a zero mean, constant variance, and should be distributed symmetrically around mean zero. ACF of any lag greater than zero is statistically insignificant.
+shampoo.m1 <- Arima(shampoo, order = c(1, 1, 1),
+seasonal = list(order = c(0, 0, 1), period = 12), include.drift = TRUE)
+
+```{r}
+shampoo.m1 <- Arima(shampoo, order = c(1, 1, 1), seasonal = list(order = c(0, 0, 1), period = 12), include.drift = TRUE)
+
+autoplot(shampoo.m1$residuals)
+ggAcf(shampoo.m1$residuals)
+checkresiduals(shampoo.m1)
+
+```
+
+Residuals appear to be random, and there exists no inter-temporal correlation. So there is no warning message. Once we have selected a model, forecasting is easy - it is readily implemented by forecast() function 
+from the forecast package.
+
+```{r}
+shampoo.f <- forecast(shampoo.m1, h = 6)
+autoplot(shampoo.f)
+
+```
+
+ 
