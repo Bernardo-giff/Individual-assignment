@@ -25,3 +25,13 @@ Attaching package: ‘dplyr’
 "
 "0","library(ggplot2)"
 "2","Warning: package ‘ggplot2’ was built under R version 4.2.3"
+"0","library(tseries)"
+"2","Warning: package ‘tseries’ was built under R version 4.2.3"
+"2","
+    ‘tseries’ version: 0.10-54
+
+    ‘tseries’ is a package for time series analysis and computational finance.
+
+    See ‘library(help=""tseries"")’ for details.
+
+"

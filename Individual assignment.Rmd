@@ -337,15 +337,15 @@ The next step is to use the Arima function to estimate the models based on the f
 
 #ARIMA(0,0,0)(0,1,1)[7]
 arima.m1 <- Arima(train_ts, order =c(0,0,0), 
-                  seasonal = c(0,1,1), include.drift = TRUE)
+                  seasonal = c(0,1,1), include.drift = FALSE)
 
 #ARIMA(1,0,0)(0,1,1)[7]
 arima.m2 <- Arima(train_ts, order =c(1,0,0), 
-                  seasonal = c(0,1,1), include.drift = TRUE)
+                  seasonal = c(0,1,1), include.drift = FALSE)
 
 #ARIMA(0,0,0)(1,1,1)[7]
 arima.m3 <- Arima(train_ts, order =c(0,0,1), 
-                  seasonal = c(0,1,1), include.drift = TRUE)
+                  seasonal = c(0,1,1), include.drift = FALSE)
 
 ```
 
@@ -408,14 +408,53 @@ checkresiduals(best_arima.m3)
 
 # Holt-Winters
 
-For time series analysis, the first step is always to visually inspect the time series. In this regard, the stl() function is quite useful.
+For time series analysis, the first step is always to visually inspect the time series. In this regard, the stl() function is quite useful. The arguments of the ets function are the time series and the model to be used. We can pass "ZZZ" as the argument for the model to let the function decide on the best parameters for the training. Let's go back to the decomposition analysis.
 
 ```{r}
-hw_ts <- ts(final[, 2], frequency = 365, start = c(2015,3,5))
-
-hw_ts %>% stl(s.window = "period") %>% autoplot
+# Plotting stl
+autoplot(stl_result) +
+  labs(title = "STL Decomposition of Time Series",
+       x = "Date",
+       y = "Total Lettuce Sales")
 ```
 
-It decomposes the original time series into trend, seasonal factors, and random error terms. The relative importance of different components are indicated by the grey bars in the plots. For this dataset, the grey bar of the trend panel is only slightly larger than that on the original time series panel, which indicates that trend component contributes to a great proportion of variations in the time series. Judging from the trend plot, the trend seems to be linear, which suggests an additive pattern.
+From this analysis, we could expect the following parameters for the Holt-Winters model:
 
-On the other hand, the grey bar of the seasonal panel is very large, even larger than the grey bar of random errorterm, which indicates that the contribution of seasonal factors to the variation in the original time series is marginal. In other words, it indicates that there is no seasonality in the data.
+-   Trend: None
+
+-   Seasonality: Additive. This is because, although there is clearly seasonality, it does not change pattern depending on the period t.
+
+-   Error: Additive, i.e: We don't see any clear evidence of error changing with the period t.
+
+Next, we run the ets function with the "ZZZ" parameter to see if our expectations are confirmed.
+
+```{r}
+
+train_ts.ets1 <- ets(train_ts, model = "ZZZ")
+
+train_ts.ets1
+```
+
+It turns out that the ETS returned a model which is aligned with our expectations. Therefore, we won't train any additional models.
+
+# Models comparison
+
+We compare its performance agains the ARIMA models trained in the previous step:
+
+```{r}
+# Forecast the test set
+hw.f1 <- forecast(train_ts.ets1,h=26)
+
+# Determine accuracy against the test set
+acc_4 <- accuracy(hw.f1, test_ts)
+
+# Print accuracy
+acc_4
+```
+
+Therefore,
+
+```{r}
+final_forecast <- data.frame(best_arima.m3.f$mean)
+write.csv(final_forecast, "final_forecast.csv")
+```
