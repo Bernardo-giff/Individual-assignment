@@ -1,37 +1,7 @@
+"0",""
 "0","library(readr)"
 "0","library(tidyr)"
-"2","Warning: package ‘tidyr’ was built under R version 4.2.3"
 "0","library(dplyr)"
-"2","Warning: package ‘dplyr’ was built under R version 4.2.3"
-"2","
-Attaching package: ‘dplyr’
-
-"
-"2","The following objects are masked from ‘package:stats’:
-
-    filter, lag
-
-"
-"2","The following objects are masked from ‘package:base’:
-
-    intersect, setdiff, setequal, union
-
-"
 "0","library(forecast)"
-"2","Warning: package ‘forecast’ was built under R version 4.2.3"
-"2","Registered S3 method overwritten by 'quantmod':
-  method            from
-  as.zoo.data.frame zoo 
-"
 "0","library(ggplot2)"
-"2","Warning: package ‘ggplot2’ was built under R version 4.2.3"
 "0","library(tseries)"
-"2","Warning: package ‘tseries’ was built under R version 4.2.3"
-"2","
-    ‘tseries’ version: 0.10-54
-
-    ‘tseries’ is a package for time series analysis and computational finance.
-
-    See ‘library(help=""tseries"")’ for details.
-
-"

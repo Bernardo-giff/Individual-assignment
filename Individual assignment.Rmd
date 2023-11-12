@@ -9,33 +9,12 @@ output: html_document
 
 ## LCS - Lettuce forecasting
 
-## Live session notes
-
--   There are three months of data
-
--   Data from 4 different stores
-
-Our data consists of three parts:
-
-1.  Transaction data
-2.  List of ingredients --\> quality and quantity
-3.  Metadata on restaurants
-
-Forecast the daily demand for the next two weeks (from 16/06/2015 to 29/06/2015) for lettuce for store 46673. We also need to fill in the CSV file. All we have to do there is to substitute the numbers.
-
-So the two steps of the project are:
-
--   Generate a time series of daily demand of lettuce --\> Most of the time
-
--   apply ARIMA and Holt-winters to predict the demand
-
--   Compare the results
-
-### Importing the datasets
+# Data preparation
 
 First, we import the relevant libraries to the project
 
-```{r}
+```{r message=FALSE, warning=FALSE}
+
 library(readr)
 library(tidyr)
 library(dplyr)
@@ -78,15 +57,16 @@ Next, we want to bring in the recipe id. To do that, we will need to join the "m
 menu_items <- read_csv("data/menu_items.csv")
 
 main <- left_join(main, select(menu_items, c("PLU", "MenuItemId", "RecipeId")), by = c("PLU" = "PLU", "Id" = "MenuItemId"))
-```
 
-```{r}
 main
 ```
 
 Our main transaction table is ready. Now, we need to figure out the quantity of lettuce per recipe. Then, we will be able to group the main table by date and have a total of lettuce demand for each day. Let's start by identifying the id of lettuce in the dataset
 
-```{r}
+```{r message=FALSE, warning=FALSE}
+# Import ingredients dataset
+ingredients <- read_csv("data/ingredients.csv")
+
 # Grab lettuce's id
 filter(ingredients, grepl("Lettuce", IngredientName, ignore.case = TRUE))
 ```
@@ -98,7 +78,6 @@ Next, we import the recipes dataset
 ```{r message=FALSE, warning=FALSE}
 
 # Importing recipes dataset
-
 recipes <- read_csv("data/recipes.csv")
 ```
 
@@ -162,7 +141,7 @@ recipes_final <- left_join(recipes, recipe_sub_recipe_joint, by="RecipeId") %>%
            filter(total_lettuce > 0)
 ```
 
-Then, we join our main transactional table again with this ingredietns adjusted table:
+Then, we join our main transactional table again with this ingredients adjusted table:
 
 ```{r message=FALSE, warning=FALSE}
 
@@ -182,7 +161,7 @@ final
 
 The final step is to create a time-series out of it:
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Transforming date field from the final table
 final$date<- as.Date(paste0("20", substr(final$date, 1, 2), "-", substr(final$date, 4, 5), "-", substr(final$date, 7, 8)))
 
@@ -200,19 +179,24 @@ ggplot(final, aes(date, total_lettuce)) +
 
 # Arima model
 
-Next, we will use the ARIMA model to forecast the demand of lettuce for the next two weeks from the observation. In order to do that, we will apply the *Box-Jenkins* procedure to our dataset. It cosists of three steps [[ADD ARIMA MODEL DEFINITION HERE]]
+Next, we will use the ARIMA model to forecast the demand of lettuce for the next two weeks. An ARIMA model consists of the integration between an autoregressive and moving average models of a time series. The parameters of each of these components are determined by the properties of the time series.
+
+In order to find the best parameters of the ARIMA model, we will apply the *Box-Jenkins* procedure to our dataset. It consists of three steps
 
 1.  Identification
 2.  Estimation
 3.  Verification
 
+These are detailed next.
+
 ## Identification
 
-The first step is to identify if our data is stationary. A stationary time series is such that its statistical properties do not depend on the time at which the series is observed. Therefore, time series with trends or with seasonality, are not stationary and we need to remove them before we proceed with the application of the ARIMA model. In order to make a time series stationary we can either rescale the time series and apply differentiation to remove the deterministic components.
+The first step is to identify if our data is stationary. A stationary time series is such that its statistical properties do not depend on the time at which the series is observed. Therefore, time series with trends or with seasonality are not stationary and we need to remove them before we proceed with the application of the ARIMA model. In order to make a time series stationary we can either rescale the time series or apply differentiation to remove the deterministic components.
 
 We start by making a simple plot of the time series as it is:
 
-```{r}
+```{r message=FALSE, warning=FALSE}
+
 library(scales)
 
 # Plot the time series directly using ggplot2
@@ -227,9 +211,9 @@ ggplot(final, aes(date, total_lettuce)) +
 
 ```
 
-There is no clear indication of trend nor deterministic error. However, there is some clear indication of seasonality. We can get a better idea of the individual components of the time series by plotting the decomposition series.
+There is no clear indication of trend nor deterministic error. However, there is clear indication of seasonality. We can get a better idea of the individual components of the time series by plotting the decomposition series.
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 
 # Transform our df into a time-series object
 ar_ts <- ts(final[, 2], frequency=7, start = c(5,3))
@@ -244,11 +228,12 @@ autoplot(stl_result) +
        y = "Total Lettuce Sales")
 ```
 
-As we suspected, there is no strong trend factor, but the size of the grey bar in the seasonal decompositon suggests there is seasonality. Moreover, we can say that the seasonality looks additive, that is, it's not changing with the series. We can apply the KPSS test for trend stationary. In this test the null hypothesis is that the time series is stationary. This means that a large p-value will mean we fail to reject the null and therefore the time series has no trend.
+As we suspected, there is no strong trend factor, but the size of the grey bar in the seasonal decompositon suggests there is seasonality. Moreover, we can say that the seasonality looks additive, that is, it's not changing with the period t of the series. We can apply the KPSS test for trend stationary. In this test the null hypothesis is that the time series is level stationary. This means that a large p-value will mean we fail to reject the null and therefore the time series has no trend.
 
-Before we proceed with testing and fitting, it is a good practice to split our data into a training and testing set. This will endure we will have a good way to compare our forecasts and assess the quality of our parameter choices. We will do a 75%-25% split
+Before we proceed with testing and fitting, it is a good practice to split our data into a training and testing set. This will ensure we will have a good way to compare our forecasts and assess the quality of our parameter choices. We will do a 75%-25% split
 
-```{r}
+```{r message=FALSE, warning=FALSE}
+
 # Splitting the dataset
 train_data <- final[final$date <= as.Date('2015/05/20'),]
 test_data <- final[final$date > as.Date('2015/05/20'),]
@@ -257,9 +242,8 @@ test_data <- final[final$date > as.Date('2015/05/20'),]
 train_ts <- ts(train_data[,2], frequency=7, start=c(05,03))
 test_ts <- ts(test_data[,2], frequency=7, start=c(16,03))
 final_ts <- ts(final[,2], frequency=7, start=c(05,03))
-```
 
-```{r}
+# Plotting the split time series, where the blue line represents the test set 
 autoplot(train_ts, series="Training") +
   autolayer(test_ts, series="Test") +
   guides(colour=guide_legend("Split")) +
@@ -277,7 +261,7 @@ We proceed to the KPSS test. This test test the time series specifically for tre
 kpss.test(train_ts)
 ```
 
-The p-value of the test was at least 0.1. So for a 10% confidence level, we fail to reject the hypothesis that the trend is stationary. With this is mind, we don't perform any differentiation on the time-series.
+The p-value of the test was at least 0.1. So for a 10% confidence level, we fail to reject the hypothesis that the trend is stationary. With this is mind, we don't perform any first-order differentiation on the time-series.
 
 The next step is to deal with the seasonality factor. To this end, we will use the nsdiffs() function. This will give us the number of seasonal differences required to stationarize the time series, if necessary. We expect this function to return a value greater then 0, since we observe a seasonal trend on the plot.
 
@@ -298,16 +282,18 @@ ggtsdisplay(train_ts,
             smooth=TRUE)
 ```
 
-The ACF plot shows clearly an autocorrelation at 7 and multiples of 7. This is expected for this dataset, since we expect our data to follow a weekly pattern, so the ACF confirms the seasonal behavior. On the PACF, we see that the plot fades after the lag 7. Therefore, a seasonal AR model with p = 7 seems to be the best choice. The following table shows the decision matrix for the ACF and PACF analysis.
+The ACF plot shows clearly an autocorrelation at 7 and multiples of 7. This is expected for this dataset, since we expect our data to follow a weekly pattern, so the ACF confirms the seasonal behavior. On the PACF, we see that the plot fades after the lag 7. The following table shows the decision matrix for the ACF and PACF analysis.
 
 |      | AR(p)                | MA(q)                | ARMA(p,q) |
 |------|----------------------|----------------------|-----------|
 | ACF  | Tails off            | Cust off after lag q | Tails off |
 | PACF | Cust off after lag p | Tails off            | Tails off |
 
+Therefore, a seasonal AR model with p = 7 seems to be the best choice.
+
 ## Estimation
 
-With this information, we will proceed to use auto.arima() to see if our expectations hold. We will use BIC (Bayes information criteria)
+With this information, we will proceed to use auto.arima() to see if our expectations hold. We will use BIC (Bayes information criteria) as the information criteria parameter.
 
 ```{r message=FALSE, warning=FALSE}
 
@@ -392,11 +378,11 @@ plot(best_arima.m3.f, main="ARIMA forecast for the next 14 days", xlab='Date',
 
 ## Verification
 
-Check if the model fits the data using residuals analysis
+The final step is to check the validity of our forecast. To this end, we will apply the four proceedures cited below:
 
 -   Calculate and plot the residuals from the model. The graph should give no indication of a non-zero mean or non-constant variance
 
--   Plot the sample ACF off the residuals. No more than two or three out of 40 shall fall outside the bounds \$/frac{1.96}{\\sqrt{n}}\$
+-   Plot the sample ACF of the residuals. No more than two or three out of 40 shall fall outside the bounds \$ \frac{1.96}{\sqrt{n}} \$
 
 -   The same applies to sample PACF of the residuals
 
@@ -405,6 +391,8 @@ Check if the model fits the data using residuals analysis
 ```{r}
 checkresiduals(best_arima.m3)
 ```
+
+By checking the residuals plot above, we observe that the residuals plot shows no sign of having an average different from zero, and the variance appears to be constant accross the x axis. On the ACF, we see that only two lags fall out of the confidence interval band, which is accepted. Finally, if we check the test results of the Ljung-Box test, the p-value is .088. This means that for a 5% confidence interval we fail to reject the null hypothesis that the data is independently distributed.
 
 # Holt-Winters
 
@@ -435,11 +423,25 @@ train_ts.ets1 <- ets(train_ts, model = "ZZZ")
 train_ts.ets1
 ```
 
-It turns out that the ETS returned a model which is aligned with our expectations. Therefore, we won't train any additional models.
+It turns out that the ETS returned a model which is aligned with our expectations. Therefore, we won't train any additional models. With that, we use the best parameters in the entire dataset and forecast the demand for the next 14 days
+
+```{r}
+# Train model on the entire data set
+final.ets <-  ets(final_ts, model = "ANA")
+
+# Forecast the demand for the next 14 days
+final.ets.f <- forecast(final.ets, h=14)
+
+# Plot the forecast
+plot(final.ets.f , main="Holt-Winters forecast for the next 14 days", xlab='Date',
+     ylab='Lettuce demand (ounces)')
+
+print(final.ets)
+```
 
 # Models comparison
 
-We compare its performance agains the ARIMA models trained in the previous step:
+We compare the Holt-winters model performance against the ARIMA models trained in the previous step:
 
 ```{r}
 # Forecast the test set
@@ -452,7 +454,7 @@ acc_4 <- accuracy(hw.f1, test_ts)
 acc_4
 ```
 
-Therefore,
+We see that the Holt-winters model had a larger RMSE than the three ARIMA models trained. Therefore, we will use model 3: ARIMA(0,0,1)(0,1,1)[7] as our final model to make the forecast.
 
 ```{r}
 final_forecast <- data.frame(best_arima.m3.f$mean)
