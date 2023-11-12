@@ -5,9 +5,9 @@ date: "`r Sys.Date()`"
 output: html_document
 ---
 
-# Individual assignment
+# Introduction
 
-## LCS - Lettuce forecasting
+In this assignment, we will perform the demand forecast of lettuce for a fast-food chain. The data comes from stores in the US. In order to apply the forecast algorithms we know, firstly we will need to prepare the data, which is spread across several datasets. The first section will be dedicated to the data pre-processing. Then, we will fit an ARIMA model to the data via the Box-Jenkins method, which will be detailed in the second section. Then, we will use Holt-winters' method to create a second forecast. Finally, we will pick the model that performs better on a test data set and use it to forecast the demand of lettuce for a particular store for the next 14 days.
 
 # Data preparation
 
@@ -417,13 +417,22 @@ From this analysis, we could expect the following parameters for the Holt-Winter
 Next, we run the ets function with the "ZZZ" parameter to see if our expectations are confirmed.
 
 ```{r}
-
+# Fitting the Holt-winters model to the training set
 train_ts.ets1 <- ets(train_ts, model = "ZZZ")
 
+# Print the results
 train_ts.ets1
 ```
 
-It turns out that the ETS returned a model which is aligned with our expectations. Therefore, we won't train any additional models. With that, we use the best parameters in the entire dataset and forecast the demand for the next 14 days
+It turns out that the ETS returned a model which is aligned with our expectations. Therefore, we won't train any additional models. Next we again check the residuals of the forecasting model
+
+```{r}
+checkresiduals(train_ts.ets1)
+```
+
+We see that the residuals plot again seems to be centered around 0 with a constant variance. The ACF plot only shows one point outside of the confidence band, and the distribution of the residuals seems to follow a normal distribution. Finally, we observe that the p-value of the test as 0.4676, which means that we fail to reject the null hypothesis that the residuals distribution is random.
+
+With that, we use the best parameters in the entire dataset and forecast the demand for the next 14 days
 
 ```{r}
 # Train model on the entire data set
